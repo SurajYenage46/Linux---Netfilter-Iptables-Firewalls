@@ -1,0 +1,7 @@
+Netfilter / iptables
+● Every packet is inspected by firewall rules. Firewall rules determine what traffic your firewall allows and what is blocked.
+● The iptables firewall uses tables to organize its rules.
+● Within each iptables table, rules are further organized within separate CHAINS. Rules are placed within a specific chain of a specific table.
+● Within a chain, a packet starts at the top of the chain and is matched rule by rule.
+● When a match is found the target is executed.
+● A target is the action that is triggered when a packet meets the matching criteriaof a rule. If the target is terminating no other rule will evaluate the packet.
