@@ -1,0 +1,270 @@
+###---IP-TABLES-----###
+----------------------------------------------------------------------------------------------------------------------------------------
+Abbrivations:
+	-: NAT  - Network Address Translation
+	-: SNAT - Source Network Address Translation
+	-: DNAT - Destination Network Address Transaltion
+	-: TCP  - Transmission Control Protocol 
+	-: UDP  - User Datagram Protocol
+----------------------------------------------------------------------------------------------------------------------------------------
+Example of bash file with basic commands and there use :-
+
+	#!/bin/bash
+ 
+	# -A -> appends a rule at the end of the CHAIN
+	iptables -A OUTPUT -p tcp --dport 443 -j DROP
+ 
+ 
+	# -I -> inserts a rule on top (1st position) of the CHAIN
+	iptables -I OUTPUT -p tcp --dport 443 -d www.linux.com -j ACCEPT
+ 
+	# -F -> flushes the CHAIN
+	iptables -t filter -F OUTPUT
+ 
+ 
+	# -Z -> zeroises the packet and byte counters
+	iptables -t filter -Z
+ 
+	# -D -> deletes a rule
+	iptables -D OUTPUT 2
+ 
+	# -P -> sets the default POLICY
+	iptables -P INPUT ACCEPT
+ 
+	# -N -> creates a user-defined CHAIN
+	iptables -N TCP_TRAFFIC
+ 
+	# -X -> delete a user-defined CHAIN
+	iptables -X TCP_TRAFFIC
+---------------------------------------------------------------------------------------------------------------------------------------------------
+# Tables :
+	1. FILTER TABLE
+		- Filter is default table for iptables.
+		- Filter table has following chains -> "INPUT" , "OUTPUT" and "FORWARD".
+	2. NAT TABLE
+		- NAT table is specialized for SNAT and DNAT (POST FORWARDING).
+		- NAT tavke has following chains -> "PREROUTING" , "POSTROUTING" and "OUTPUT".
+	3. MANGLE TABLE
+		- MANGLE table is specialized for packet alteration.
+		- MANGLE table has following chains -> "PREROUTING" , "POSTROUTING" , "INPUT" , "OUTPUT" and "FORWARD".
+	4. RAW TABLE 
+		- The raw table is only used to set a mark on packets that should not be handled by the connection tracking system.
+		  This is done by using the NOTRACK target on the packet.
+		- RAW table has the following built-in chains: "PREROUTING" and "OUTPUT".	
+		
+# Commands to check the different types of result after applying the firwall rule on different tables in Bash file:-
+
+	#!/bin/bash
+ 
+	# listing the filter table of all chains (INPUT, OUTPUT and FORWARD)
+	iptables -t filter -L
+		
+	# listing the filter table (it's default) of all chains, verbose (v) and in numeric format (n) 
+	iptables -vnL
+ 
+	# listing just a chain
+	iptables -vnL INPUT
+ 
+	# listing another table, not filter
+	iptables -t nat -vnL
+ 
+	# listing just a CHAIN
+	iptables -t nat -vnL POSTROUTING
+	
+-----------------------------------------------------------------------------------------------------------------------------------------------------	
+	
+# Default Policy Setup
+	-: By default policy is set to "ACCEPT" all traffic.(Note : You can change default policy only for "INPUT", "OUTPUT", and "FORWARD" chains).
+	-: Use -P to change it
+	
+	eg : iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Commands - Setting Policy
+	#!/bin/bash
+ 
+	# By default POLICY is ACCEPT on all CHAINS
+ 
+	# !!! If there is no rule that accepts packets and the policy is set to drop, all traffic will be dropped.
+	# Change the default policy with caution!
+	
+	# Setting the DROP Policy on FORWARD chain
+	iptables -P FORWARD DROP
+ 
+	# Setting the ACCEPT Policy on OUTPUT chain
+	iptables -P OUTPUT ACCEPT
+ 
+	# Setting the DROP Policy on INPUT chain
+	iptables -P INPUT DROP
+	
+----------------------------------------------------------------------------------------------------------------------------------------------------
+# Commands - Filter by IP or NET
+
+	#!/bin/bash
+ 
+	# flushing the firewall
+	iptables -F
+ 
+	# dropping all traffic from 100.0.0.1
+	iptables -A INPUT -s 100.0.0.1 -j DROP
+ 
+	# accepting all ssh traffic from network 80.0.0.0/16
+	iptables -A INPUT -s 80.0.0.0/16 -p tcp --dport 22 -j ACCEPT
+ 
+	# dropping all outgoing HTTPS traffic to www.ubuntu.com (dns traffic must be permitted)
+	iptables -A OUTPUT -p tcp --dport 443 -d www.ubuntu.com -j DROP
+	
+-----------------------------------------------------------------------------------------------------------------------------------------------------	
+#Commands - Filter by IP Range
+	#!/bin/bash
+ 
+	# flushing the firewall 
+	iptables -F 
+ 
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.10 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.11 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.12 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.13 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.14 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.15 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.16 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.17 -j DROP
+	#iptables -A INPUT -p tcp --dport 25 -s 10.0.0.18 -j DROP
+ 
+ 
+	# all 9 rules obove are replaced by the following rule:
+	iptables -A INPUT -p tcp --dport 25 -m iprange --src-range 10.0.0.10-10.0.0.18 -j DROP
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+# Commands - Filter by "Port", "Protocol" and "Interface" :-
+
+	#!/bin/bash
+ 
+	iptables -F INPUT
+ 
+ 
+	### FILTER BY PORT (-p tcp|udp --sport | --dport) ###
+ 
+	# ALLOW SSH CONNECTIONS ONLY FROM ONE IP ADDRESS
+	# dropping incoming packets to port 22 except if they are coming from 80.0.0.1
+	iptables -A INPUT -p tcp --dport 22 -s 80.0.0.1 -j ACCEPT
+	# it's possible to specify port using service name (/etc/services)
+	# iptables -A INPUT -p tcp --dport ssh -s 80.0.0.1 -j ACCEPT
+ 
+	# dropping all other ssh traffic
+	iptables -A INPUT -p tcp --dport 22 -j DROP
+ 
+	# allowing DNS Queries
+	iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
+	iptables -A INPUT -p udp --sport 53 -j ACCEPT
+ 
+ 
+	### FILTER BY PROTOCOL (-p) ###
+ 
+	# dropping incoming GRE traffic
+	iptables -A INPUT -p gre -j DROP
+ 
+	# allowing outgoing ICMP traffic
+	iptables -A OUTPUT -p icmp -j DROP
+ 
+ 
+	### FILTER BY INTERFACE (-i | -o) ###
+ 
+	# allowing loopback interface traffic (always recommended)
+	iptables -A INPUT -i lo -j ACCEPT
+	iptables -A OUTPUT -o lo -j ACCEPT
+ 
+	# dropping ssh traffic that's coming on eth0 interface (suppose it's external)
+	iptables -A INPUT -p tcp --dport 22 -i eth0 -j DROP
+ 
+	# allowing ssh traffic that's coming on eht1 interface (suppose it's internal)
+	iptables -A INPUT -p tcp --dport 22 -i eth1 -j ACCEPT
+ 
+	# allowing outgoing https traffic via eth1
+	iptables -A OUTPUT -p tcp --dport 443 -o eth1 -j ACCEPT
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+Commands - Negating Matches
+	
+	#!/bin/bash
+ 
+	iptables -F
+ 
+	# dropping all incoming ssh traffic accepting packets from 100.0.0.1 (management station)
+	iptables -A INPUT -p tcp --dport 22 ! -s 100.0.0.1 -j DROP
+ 
+ 
+	# dropping all outgoing https traffic excepting to www.linux.com
+	iptables -A OUTPUT -p tcp --dport 443 ! -d www.linux.com -j DROP
+  
+	# dropping all communication excepting that with the default gateway (mac is b4:6d:83:77:85:f4)
+	iptables -A INPUT -m mac ! --mac-source b4:6d:83:77:85:f4 -j DROP
+ 
+	iptables -P INPUT ACCEPT
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+Commands - Match by TCP Flags
+
+	#!/bin/bash
+ 
+	# flushing the firewall
+	iptables -F
+ 
+	# dropping all incoming tcp packets that have syn set
+	iptables -A INPUT -p tcp --syn -j DROP
+ 
+	# logging outgoing traffic that has syn and ack set
+	iptables -A OUTPUT -p tcp --tcp-flags syn,ack,rst,fin syn,ack -j LOG
+	
+----------------------------------------------------------------------------------------------------------------------------------------------------
+# Statefull Firewall
+	# Connection Tracking = Stateful Firewall
+		● Connection tracking = ability to maintain state information about connections.
+		● Stateful firewalls are more secure than stateless firewalls.
+		● Stateful firewalls decide to accept or to drop packets based on the relations these packets are with other packets.
+		● Netfilter is a stateful firewall.
+	# Packet states:
+		1. NEW - the first packet from a connection.
+		2. ESTABLISHED - packets that are part of an existing connection.
+		3. RELATED - packets that are requesting a new connection and are already part of an existing connection (Ex: FTP).
+		4. INVALID - packets that are not part of any existing connection.
+		5. UNTRACKED - packets marked within the raw table with the NOTRACK target.
+	# Connection tracking can be used even if the protocol itself is stateless (Ex: UDP, ICMP).
+	# "-m state --state state" , where state is a comma separated values of packet states written in UPPERCASE letters
+	# Example: 
+		iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Script - Stateful Firewall  
+	#!/bin/bash
+ 
+	###** FIREWALL FOR A DESKTOP OPERATING SYSTEM **###
+ 
+	#flush filter table from all chains
+	iptables -F 
+ 
+	#allow loopback interface traffic 
+	iptables -A INPUT -i lo -j ACCEPT
+	iptables -A OUTPUT -o lo -j ACCEPT
+ 
+ 
+	#drop invalid packets on INPUT and OUTPUT CHAINS
+	iptables -A INPUT -m state --state INVALID -j DROP
+	iptables -A OUTPUT -m state --state INVALID -j DROP
+ 
+ 
+	#optional, uncomment the line if you want to allow incoming connections from our LAN
+	#iptables -A INPUT -s 192.168.0.0/24 -j ACCEPT
+ 
+	#optional, uncomment the line if you want to allow incoming ssh connection from a specific ip address
+	#iptables -A INPUT -p tcp --dport 22 --syn -s 80.0.0.1 -j ACCEPT
+ 
+	#allow only ESTABLISHED and RELATED packets on INPUT
+	iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+ 
+	#allow also NEW packets on OUTPUT (packets that initialize connections)
+	iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+ 
+ 
+	#set policy to DROP on INPUT and OUTPUT CHAINS
+	iptables -P INPUT DROP
+	iptables -P OUTPUT DROP
+-----------------------------------------------------------------------------------------------------------------------------------------------------
