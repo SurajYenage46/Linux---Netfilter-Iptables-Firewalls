@@ -6,6 +6,7 @@ Abbrivations:
 	-: DNAT - Destination Network Address Transaltion
 	-: TCP  - Transmission Control Protocol 
 	-: UDP  - User Datagram Protocol
+	-: ICMP - Internet Control Message Protocol
 ----------------------------------------------------------------------------------------------------------------------------------------
 Example of bash file with basic commands and there use :-
 
@@ -99,6 +100,18 @@ Example of bash file with basic commands and there use :-
 ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Commands - Filter by IP or NET
 
+	1. Match by Source IP or Network Address
+	
+		Match: -s IP, --source IP
+		Example: iptables -A INPUT -s 100.0.0.0/16 -j DROP
+		
+	2. Match by Destination IP or Network Address
+	
+		Match: -d IP, --destination IP
+		Example: iptables -A FORWARD -d 80.0.0.1 -j DROP
+				iptables -A OUTPUT -d www.ubuntu.com -j DROP
+				
+# Bash file example	
 	#!/bin/bash
  
 	# flushing the firewall
@@ -115,6 +128,19 @@ Example of bash file with basic commands and there use :-
 	
 -----------------------------------------------------------------------------------------------------------------------------------------------------	
 #Commands - Filter by IP Range
+	1. Match by IP Range
+
+		Match: -m iprange --src-range ip_start-ip_end
+			   -m iprange --dst-range ip_start-ip_end
+		Example: iptables -A INPUT -m iprange --src-range 10.0.0.10-10.0.0.29 -p tcp --dport 25 -j DROP
+
+	2. Match by Address Type
+		
+		Match: -m addrtype --src-type UNICAST,MULTICAST,BROADCAST
+			   -m addrtype --dst-type UNICAST,MULTICAST,BROADCAST
+		Example: iptables -A OUTPUT -m addrtype --dst-type MULTICAST -j DROP
+
+# Bash File example:
 	#!/bin/bash
  
 	# flushing the firewall 
@@ -136,7 +162,31 @@ Example of bash file with basic commands and there use :-
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------
 # Commands - Filter by "Port", "Protocol" and "Interface" :-
+	1. Match by a single port
 
+		Match option: -p tcp --dport port, -p udp --sport port
+		Example:iptables -A INPUT -p tcp --dport 22 -j DROP
+	
+	2. Match by multiple ports
+	
+		Match option: -m multiport --sports | --dports port1,port2,...
+		Example:iptables -A OUTPUT -p tcp -m multiport --dports 80,443 -j ACCEPT
+
+	1. Match by incoming interface
+
+		Match: -i incoming_interface
+		Available for: INPUT, FORWARD and PREROUTING chains.
+		Example: iptables -A INPUT -i wlan0 -j ACCEPT
+
+	2. Match by outgoing interface
+
+		Match: -o outgoing_interface
+		Available for: FORWARD, OUTPUT and POSTROUTING chains.
+		Example: iptables -A OUTPUT -o enp8s0 ACCEPT
+	
+	Note: It’s good practice to permit traffic on the loopback interface (lo
+
+# Bash File example:
 	#!/bin/bash
  
 	iptables -F INPUT
@@ -183,8 +233,11 @@ Example of bash file with basic commands and there use :-
 	iptables -A OUTPUT -p tcp --dport 443 -o eth1 -j ACCEPT
 
 -------------------------------------------------------------------------------------------------------------------------------------------------
-Commands - Negating Matches
+# Commands - Negating Matches
+	: '!' is used to negating the rule 
+	example : You want to allow the traffic from only specific ip address.
 	
+# Bash File Example:
 	#!/bin/bash
  
 	iptables -F
@@ -202,7 +255,31 @@ Commands - Negating Matches
 	iptables -P INPUT ACCEPT
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------
-Commands - Match by TCP Flags
+# Commands - Match by TCP Flags
+	
+	Match:
+		--syn: match if the syn flag in set
+		--tcp-flags mask comp. Match when the TCP flags are set as specified.
+		
+		The first argument mask is the flags which we should examine, written as a 
+		comma-separated list, and the second argument comp is a comma-separated list of 
+		flags which must be set. 
+	
+	Example: 
+		iptables -A INPUT -i wlan0 -p tcp --syn -s 10.0.0.1 -j ACCEPT
+	
+	Match by TCP flags
+	TCP Flags are: 
+		SYN - synchronize
+		ACK - acknowledgement
+		FIN - finalize
+		RST - reset
+		URG - urgent
+		PSH - push
+		ALL 
+		NONE
+
+# Bash File Example:
 
 	#!/bin/bash
  
@@ -234,9 +311,10 @@ Commands - Match by TCP Flags
 		iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # Script - Stateful Firewall  
+
 	#!/bin/bash
  
-	###** FIREWALL FOR A DESKTOP OPERATING SYSTEM **###
+	###*** FIREWALL FOR A DESKTOP OPERATING SYSTEM ***###
  
 	#flush filter table from all chains
 	iptables -F 
@@ -268,3 +346,371 @@ Commands - Match by TCP Flags
 	iptables -P INPUT DROP
 	iptables -P OUTPUT DROP
 -----------------------------------------------------------------------------------------------------------------------------------------------------
+# Filter by MAC Address:
+
+	● It is possible to filter traffic only by source mac address.
+
+	Match: -m mac --mac-source source_mac_address
+
+	Example:
+		iptables -A INPUT -i wlan0 -m mac --mac-source 08:00:27:55:6f:20 -j DROP
+		
+	Tasks:
+		1. Drop packets from a specific mac address
+		2. Permit only a list of trusted hosts (MACs) through the firewall (NAT Router)
+
+#Script - Filter by MAC
+	#!/bin/bash
+ 
+	##** FILTER BY MAC ADDRESS (only source) **##
+ 
+	iptables -F INPUT
+ 
+	# defining a variable that contains the allowed MAC addresses
+	PERMITTED_MACS="08:00:27:15:b2:ec 08:00:27:15:b2:df 08:00:27:15:b2:ab"
+ 
+	# this host can communicate only with other hosts inside our LAN that have
+	# a MAC address from this list 
+	# !!! to be able to communicate outside the LAN (e.g. Internet) the MAC 
+	# of the router internal interface should also be allowed
+	for MAC in $PERMITTED_MACS
+	do
+		iptables -A INPUT -m mac --mac-source $MAC -j ACCEPT
+		echo "$MAC permitted"
+	done
+ 
+ 
+	# set POLICY to DROP on INPUT (all other packets are dropped)
+	iptables -P INPUT DROP
+	
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+# Filter by Date and Time:
+	-m time option
+	Time match options:
+		--datestart time Start and stop time, to be given in ISO 8601
+		--datestop time (YYYY[-MM[-DD[Thh[:mm[:ss]]]]])
+		--timestart time Start and stop daytime (hh:mm[:ss])
+		--timestop time (between 00:00:00 and 23:59:59)
+		--monthdays value List of days on which to match, separated by comma
+		[!] --weekdays value List of weekdays on which to match, sep. by comma
+		--kerneltz Work with the kernel timezone instead of UTC
+		
+	Note: By default it uses UTC and not system time
+		--kerneltz makes netfilter use system time instead of UTC time (!!!!)
+	
+	Example:
+		1. Permit incoming ssh traffic only between 10 AM and 4 PM on weekdays
+		2. Allow access to a specific web site only after working hours ( > 6PM). Suppose this 
+		
+machine is the Router
+# Script - Match by Data and Time
+	#!/bin/bash
+ 
+	##** MATCH BY DATE AND TIME **##
+ 
+	## See the help: iptables -m time --help
+ 
+	# flushing the filter table
+	iptables -F
+ 
+ 
+	# !!!!! TIME is UTC and not system time
+ 
+	# accepting incoming tcp port 22 (ssh) packets daily ONLY between 8:00-18:00 
+	iptables -A INPUT -p tcp --dport 22 -m time --timestart 8:00 --timestop 18:00 -j ACCEPT
+	iptables -A INPUT -p tcp --dport 22 -j DROP
+ 
+ 
+	# accepting forwarded traffic (this is the Router) to www.ubuntu.com on workdays between 18:00-08:00
+	iptables -A FORWARD -p tcp --dport 80 -d www.ubuntu.com -m time --weekdays Mon,Tue,Wed,Thu,Fri \
+	--timestart 18:00 --timestop 8:00 -j ACCEPT
+ 
+	# packets to www.ubuntu.com are dropped between 8:00 - 18:00 (working hours)
+	iptables -A FORWARD -p tcp --dport 80 -d www.ubuntu.com -j DROP
+
+	
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Connlimit Match
+
+	-m connlimit option
+
+	Connlimit Match Options:
+		--connlimit-upto n: match if the number of existing connections is less than n
+		--connlimit-above n: match if the number of existing connections is greater than n
+		
+	Example:
+		iptables -A INPUT -p tcp --dport 25 --syn -m connlimit --connlimit-above 5 -j REJECT 
+		--reject-with tcp-rs
+# The Limit Match
+	
+	-m limit option
+	
+	There are 2 options:
+		--limit value, where value is the maximum matches pe time-unit (default second) 
+		--limit-burst value, where value is maximum burst (matches) before the above limit “kicks in” (default 5)
+	
+	Examples:
+		1. iptables -A FORWARD -m limit --limit 1/minute -p udp --dport 53 -j LOG
+		2. iptables -A INPUT -p tcp --syn -m limit --limit 2/s --limit-burst 7 -j ACCEPT		
+
+# Script - The Limit Match
+	
+	#!/bin/bash
+ 
+	iptables -F INPUT
+ 
+	# allow only 1 incoming ping (echo-request) per second with a burst of 3
+	iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/sec --limit-burst 3 -j ACCEPT
+	# drop packets that were not accepted by the rule above (they are above the limit)
+	iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+ 
+ 
+	# allow only 5 new incoming connections per second to port 443 (https) 
+	iptables -A INPUT -p tcp --dport 443 --syn -m limit --limit 5/sec -j ACCEPT
+	iptables -A INPUT -p tcp --dport 443 --syn -j DROP
+
+ 
+# To check above rules result 
+	linux 1 -> use command "tcpdump icmp -n"
+	linux 2 -> use command "ping -i <ip-address of linux 1>"
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+# The Recent Match
+		● It creates a dynamic database of blacklisted source IP addresses.
+	Example:
+		iptables -A FORWARD -m recent --name badguys --update --seconds 60 -j DROP
+		iptables -A FORWARD -p tcp -i eth0 --dport 8080 -m recent --name badguys --set -j DROP
+ 
+	The list with blacklisted IP addresses is found in: /proc/net/xt_recent/LIST_NAME
+
+# Recent match options: 
+	--name: creates a list in which the source IP address will be added and checked.
+	--set: adds the source IP address to the list.
+	--update: checks if the source IP address is in the list and updates the "last seen time". 
+	--rcheck: checks if the source IP address is in the list and DOESN’T update the "last seen time".
+	--seconds: used with --update or --rcheck. Matches the packet only if the source IP address is in the list and the last seen time is valid.
+	
+Script - The Recent Match
+	#!/bin/bash
+ 
+	##** BUILD A DYNAMIC DATABASE OF BANNED IP ADDRESSES**##
+ 
+	## Get help: iptables -m recent --help
+ 
+	iptables -F INPUT
+ 
+ 
+	# when a packet is coming, it will be checked against this rule and
+	# if its source ip belongs to the hacker list, the packet will be dropped
+	# last seen time is updated with another 60 seconds (the source ip address stays in the list for another 60 seconds)
+	iptables -A INPUT -m recent --name hackers --update --seconds 60 -j DROP
+ 
+ 
+	# when the 1st matched packet arrives (tcp/25 between 8:00-10:00 UTC), a list named hacker is created,
+	# the source ip address of the packet is added to that list and the packet is dropped
+	iptables -A INPUT -p tcp --dport 25 -m time --timestart 8:00 --timestop 10:00 -m recent --name hackers --set -j DROP
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+# The Quota Match
+
+		● When the quota is reached, the rule doesn't match any more.
+		
+	-m quota --quota bytes
+	
+	Example:
+		iptables -A OUTPUT -d 80.0.0.1 -p tcp --sport 80 -m quota --quota 1000000000 -j ACCEPT
+		iptables -A OUTPUT -d 80.0.0.1 -p tcp --sport 80 -j DROP
+# Script - Match by Quota
+	#!/bin/bash
+ 
+	##** MATCH BY QUOTA **##
+ 
+	iptables -F
+ 
+	# permit max QUOTA bytes from protocol tcp and port 80 (ROUTED TRAFFIC, we are the ROUTER)
+	# traffic is generated by a server inside our LAN. This is downloaded traffic by Internet clients from our server.
+ 
+	### EDIT the values below ###
+	PROTOCOL="tcp"
+	PORT="80"
+	#1GB
+	QUOTA1="1000000000"
+	#this is the outgoing interface
+	INT="eth0"
+	###
+ 
+	###DO NOT EDIT BELOW THIS LINE
+	iptables -A FORWARD -o $INT -p $PROTOCOL --sport $PORT -m quota --quota $QUOTA1 -j ACCEPT
+	iptables -A FORWARD -o $INT -p $PROTOCOL --sport $PORT 				-j DROP
+ 
+ 
+ 
+	# permit max 100MB of incoming https traffic from the web site with the address 100.0.0.1
+ 
+	### EDIT the values below ###
+	HTTPS_SERVER="100.0.0.1"
+	PROTOCOL="tcp"
+	PORT="443"
+	#100MB
+	QUOTA2="100000000"
+	###
+ 
+	###DO NOT EDIT BELOW THIS LINE
+	iptables -A INPUT -s $HTTPS_SERVER -p $PROTOCOL --sport $PORT -m quota --quota $QUOTA2 -j ACCEPT
+	iptables -A INPUT 		   -p $PROTOCOL --sport $PORT 			       -j DROP
+-------------------------------------------------------------------------------------------------------------------------------------- 
+# Advanced Firewall Configuration with IP SET
+
+# DESCRIPTION
+	ipset is used to set up, maintain and inspect so called IP sets in the Linux kernel. 
+	Depending on the type of the set, an IP set may store IP(v4/v6) addresses, (TCP/UDP) port numbers, IP and MAC address pairs, IP address and port number pairs, etc.
+	See the set type definitions below.
+	Iptables matches and targets referring to sets create references, which protect the given sets in the kernel.
+	A set cannot be destroyed while there is a single reference pointing to it.  
+
+# SYNOPSIS
+	ipset [ OPTIONS ] COMMAND [ COMMAND-OPTIONS ]
+	COMMANDS := { create | add | del | test | destroy | list | save | restore | flush | rename | swap | help | version | - }
+
+	OPTIONS := { -exist | -output { plain | save | xml } | -quiet | -resolve | -sorted | -name | -terse | -file filename }
+
+	ipset create SETNAME TYPENAME [ CREATE-OPTIONS ]
+
+	ipset add SETNAME ADD-ENTRY [ ADD-OPTIONS ]
+
+	ipset del SETNAME DEL-ENTRY [ DEL-OPTIONS ]
+
+	ipset test SETNAME TEST-ENTRY [ TEST-OPTIONS ]
+
+	ipset destroy [ SETNAME ]
+
+	ipset list [ SETNAME ]
+
+	ipset save [ SETNAME ]
+
+	ipset restore
+
+	ipset flush [ SETNAME ]
+
+	ipset rename SETNAME-FROM SETNAME-TO
+
+	ipset swap SETNAME-FROM SETNAME-TO
+
+	ipset help [ TYPENAME ]
+
+	ipset version
+
+	ipset -  
+
+# COMMANDS
+	These options specify the desired action to perform. Only one of them can be specified on the command line unless otherwise specified below.
+	For all the long versions of the command names, you need to use only enough letters to ensure that ipset can differentiate it from all other commands. 
+	The ipset parser follows the order here when looking for the shortest match in the long command names.
+		1. n, create SETNAME TYPENAME [ CREATE-OPTIONS ]
+			Create a set identified with setname and specified type. The type may require type specific options. 
+			If the -exist option is specified, ipset ignores the error otherwise raised when the same set (setname and create parameters are identical) already exists.
+		2. add SETNAME ADD-ENTRY [ ADD-OPTIONS ]
+			Add a given entry to the set. If the -exist option is specified, ipset ignores if the entry already added to the set.
+		3. del SETNAME DEL-ENTRY [ DEL-OPTIONS ]
+			Delete an entry from a set. If the -exist option is specified and the entry is not in the set (maybe already expired), then the command is ignored.
+		4. test SETNAME TEST-ENTRY [ TEST-OPTIONS ]
+			Test whether an entry is in a set or not. Exit status number is zero if the tested entry is in the set and nonzero if it is missing from the set.
+		5. x, destroy [ SETNAME ]
+			Destroy the specified set or all the sets if none is given.
+			If the set has got reference(s), nothing is done and no set destroyed.
+
+		6. list [ SETNAME ] [ OPTIONS ]
+			List the header data and the entries for the specified set, or for all sets if none is given. 
+			The -resolve option can be used to force name lookups (which may be slow). When the -sorted option is given, the entries are listed/saved sorted (which may be slow).
+			The option -output can be used to control the format of the listing: plain, save or xml. (The default is plain.)
+			If the option -name is specified, just the names of the existing sets are listed. If the option -terse is specified, just the set names and headers are listed. 
+			The output is printed to stdout, the option -file can be used to specify a filename instead of stdout.
+		7. save [ SETNAME ]
+			Save the given set, or all sets if none is given to stdout in a format that restore can read.
+			The option -file can be used to specify a filename instead of stdout.
+		8. restore
+			Restore a saved session generated by save.
+			The saved session can be fed from stdin or the option -file can be used to specify a filename instead of stdin.
+			Please note, existing sets and elements are not erased by restore unless specified so in the restore file.
+			All commands are allowed in restore mode except list, help, version, interactive mode and restore itself.
+
+		9. flush [ SETNAME ]
+			Flush all entries from the specified set or flush all sets if none is given.
+		10. e, rename SETNAME-FROM SETNAME-TO
+				Rename a set. Set identified by SETNAME-TO must not exist.
+		11. w, swap SETNAME-FROM SETNAME-TO
+				Swap the content of two sets, or in another words, exchange the name of two sets. The referred sets must exist and compatible type of sets can be swapped only.
+		12. help [ TYPENAME ]
+			Print help and set type specific help if TYPENAME is specified.
+		13. version
+			Print program version.
+		14 -
+			If a dash is specified as command, then ipset enters a simple interactive mode and the commands are read from the standard input.
+			The interactive mode can be finished by entering the pseudo-command quit.
+ 
+
+	OTHER OPTIONS
+		The following additional options can be specified. The long option names cannot be abbreviated.
+		1.-!, -exist
+			Ignore errors when exactly the same set is to be created or already added entry is added or missing entry is deleted.
+		2.-o, -output { plain | save | xml }
+			Select the output format to the list command.
+		3.-q, -quiet
+			Suppress any output to stdout and stderr. ipset will still exit with error if it cannot continue.
+		4.-r, -resolve
+			When listing sets, enforce name lookup. The program will try to display the IP entries resolved to host names which requires slow DNS lookups.
+		5.-s, -sorted
+			Sorted output. When listing or saving sets, the entries are listed sorted.
+		6.-n, -name
+			List just the names of the existing sets, i.e. suppress listing of set headers and members.
+		7.-t, -terse
+			List the set names and headers, i.e. suppress listing of set members.
+		8.-f, -file filename
+			Specify a filename to print into instead of stdout (list or save commands) or read from instead of stdin (restore command).
+
+# Basic Bash file example:
+	#!/bin/bash
+ 
+	# Creating a new set called myset of type iphash (hash:ip) -> -N or create
+	# Another useful type is nethash or hash:net
+	# -exist -> no error if it already exists
+	ipset -N myset iphash -exist
+ 
+ 
+	# Adding IPs to the set (-A or add)
+ 
+	ipset -A myset 1.2.3.4
+	ipset add myset 4.3.2.1
+	ipset -A myset 3.2.1.4
+	ipset -A myset 3.2.1.4 -exist # -exist -> no error if the entry already exists in the set
+ 
+ 
+	Reference the set in a match specification of iptables
+	# DROP on source
+	iptables -A INPUT -m set --match-set myset src -j DROP
+ 
+ 
+	# Listing set entries (-L or list)
+	ipset list  # => lists all sets with all entries
+	ipset -L myset # => lists only that set
+	ipset -L -n 	# => lists only the set names
+ 
+ 
+	# Deleting an entry from a set (-D or del)
+	ipset -D myset 1.2.3.4
+	ipset del myset 4.3.2.1
+ 
+ 
+	# Flushing all entries from a set or from all sets (-F or flush)
+	ipset -F myset # => flushing all entries from myset 
+	ipset -F   # => flushing all entries from all sets
+ 
+	# Setting the maximal number of elements which can be stored in a set (default value: 65535) 
+	ipset create myset1 hash:ip maxelem 2048
+ 
+ 
+	# Destroying a set (-X or destroy)
+	ipset destroy myset
+	ipset -X 	# => destroying all sets
+ 
+	# Note: a set cannot be destroyed while there is a single reference pointing to it. 	
